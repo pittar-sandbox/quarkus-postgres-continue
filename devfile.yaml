@@ -1,0 +1,116 @@
+schemaVersion: 2.2.2
+attributes:
+  controller.devfile.io/storage-type: per-workspace
+metadata:
+  name: devspaces-demo
+  provider: Red Hat
+  icon: https://design.jboss.org/quarkus/logo/final/SVG/quarkus_icon_rgb_default.svg
+  website: https://quarkus.io
+  displayName: Quarkus Java and PostgreSQL
+  description: Quarkus with Java and PostgreSQL
+  tags:
+    - Java
+    - Quarkus
+    - PostgreSQL
+    - Continue
+  projectType: Quarkus
+  language: Java
+projects:
+  - name: "devspaces-demo"
+    git:
+      remotes:
+        origin: "https://github.com/pittar-sandbox/quarkus-postgres-continue"
+      checkoutFrom:
+        revision: "main"
+        remote: origin
+components:
+  - name: tools
+    container:
+      image: registry.redhat.io/devspaces/udi-rhel9:latest
+      env:
+        - name: QUARKUS_HTTP_HOST
+          value: 0.0.0.0
+        # - name: QUARKUS_DATASOURCE_DB-KIND
+        #   value: postgresql
+        # - name: QUARKUS_DATASOURCE_USERNAME
+        #   value: quarkus_test
+        # - name: QUARKUS_DATASOURCE_PASSWORD
+        #   value: quarkus_test
+        # - name: QUARKUS_DATASOURCE_JDBC_URL
+        #   value: jdbc:postgresql://localhost/quarkus_test
+        # - name: QUARKUS_DATASOURCE_PASSWORD
+        #   value: quarkus_test
+        # - name: QUARKUS_HIBERNATE-ORM_DATABASE_GENERATION
+        #   value: update
+        # - name: QUARKUS_HIBERNATE-ORM_SQL-LOAD-SCRIPT
+        #   value: import.sql
+        - name: QUARKUS_ANALYTICS_DISABLED
+          value: "true"
+      endpoints:
+        - exposure: none
+          name: debug
+          protocol: tcp
+          targetPort: 5005
+        - exposure: public
+          name: main
+          protocol: https
+          targetPort: 8080
+          path: /
+      volumeMounts:
+        - name: m2
+          path: /home/user/.m2
+      cpuLimit: '4'
+      cpuRequest: '1'
+      memoryLimit: '8G'
+      memoryRequest: '8G'
+      mountSources: true
+  - name: postgres
+    container:
+      image: "registry.redhat.io/rhel9/postgresql-16:latest"
+      memoryLimit: "256M"
+      env:
+        - name: POSTGRESQL_DATABASE
+          value: quarkus_test
+        - name: POSTGRESQL_USER
+          value: quarkus_test
+        - name: POSTGRESQL_PASSWORD
+          value: quarkus_test
+      volumeMounts:
+        - name: pgdata
+          path: /var/lib/pgsql/data
+      endpoints:
+        - name: postgres
+          targetPort: 5432
+          exposure: internal
+  - volume:
+      size: 1G
+    name: m2
+  - volume:
+      size: 2Gi
+    name: pgdata
+commands:
+  - id: 1-package
+    exec:
+      label: "1. Package the application"
+      component: tools
+      workingDir: ${PROJECTS_ROOT}/devspaces-demo
+      commandLine: "./mvnw package"
+      group:
+        kind: build
+        isDefault: true
+  - id: 2-startdev
+    exec:
+      label: "2. Start Development mode (Hot reload + debug)"
+      component: tools
+      workingDir: ${PROJECTS_ROOT}/devspaces-demo
+      commandLine: "./mvnw compile quarkus:dev"
+      group:
+        kind: run
+        isDefault: true
+  - id: configure-continue
+    exec:
+      component: tools
+      commandLine: "mkdir -p /home/user/.continue && cp /data/config/continue/*.* /home/user/.continue/"
+events:
+  postStart:
+    - configure-continue
